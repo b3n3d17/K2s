@@ -7,19 +7,19 @@ SPDX-License-Identifier: MIT
 
 ## Core Principles and Architecture: simplicity and maximum performance
 
-In alignment with *K2s*' foundational design principles of operational <b>simplicity</b> and <b>maximum performance</b>, our networking architecture is built upon Flannel CNI configured in host-gateway mode. This provides a transparent, high-throughput, and low-latency data plane that is ideal for demanding workloads and facilitates straightforward network analysis. For production-grade security, K2s integrates the [security addon](https://github.com/Siemens-Healthineers/K2s/blob/main/addons/security/README.md) which uses [Linkerd](https://linkerd.io/) to establish a zero-trust environment for all TCP-based traffic through transparent mTLS and fine-grained policy enforcement.
+In alignment with *K2s*' foundational design principles of operational **simplicity** and **maximum performance**, our networking architecture is built upon Flannel CNI configured in host-gateway mode. This provides a transparent, high-throughput, and low-latency data plane that is ideal for demanding workloads and facilitates straightforward network analysis. For production-grade security, K2s integrates the [security addon](https://github.com/Siemens-Healthineers/K2s/blob/main/addons/security/README.md) which uses [Linkerd](https://linkerd.io/) to establish a zero-trust environment for all TCP-based traffic through transparent mTLS and fine-grained policy enforcement.
 
 ## The Broader Strategic Value of Simplicity and Performance
 
 The commitment to a simple and performant networking foundation provides strategic advantages that extend far beyond enabling zero-trust features. This architecture directly translates into tangible value for both operators and developers running workloads on *K2s*.
 
-<b>Accelerated Diagnostics and Troubleshooting</b>: The transparent host-gateway data plane avoids complex encapsulation (like VXLAN or IP-in-IP). Network traffic remains directly observable on the host, allowing operators to use standard, universal tools like tcpdump and Wireshark for rapid, intuitive debugging. This dramatically reduces the mean time to resolution (MTTR) for network-related issues compared to debugging opaque overlay networks.
+**Accelerated Diagnostics and Troubleshooting**: The transparent host-gateway data plane avoids complex encapsulation (like VXLAN or IP-in-IP). Network traffic remains directly observable on the host, allowing operators to use standard, universal tools like tcpdump and Wireshark for rapid, intuitive debugging. This dramatically reduces the mean time to resolution (MTTR) for network-related issues compared to debugging opaque overlay networks.
 
-<b>Maximized Resource Efficiency and Throughput</b>: By minimizing the CPU and memory overhead of the networking stack, more resources are available for the applications themselves. This near-bare-metal network performance is critical for the high-throughput and low-latency requirements of data-intensive workloads, such as medical imaging, AI/ML data pipelines, and transactional databases.
+**Maximized Resource Efficiency and Throughput**: By minimizing the CPU and memory overhead of the networking stack, more resources are available for the applications themselves. This near-bare-metal network performance is critical for the high-throughput and low-latency requirements of data-intensive workloads, such as medical imaging, AI/ML data pipelines, and transactional databases.
 
-<b>Reduced Operational Overhead and Increased Reliability</b>: A simpler architecture with fewer moving parts inherently reduces the system's attack surface and the potential for component failure or misconfiguration. This lean operational model lowers the cognitive load on platform teams, making the cluster easier to manage, secure, and upgrade, thereby increasing overall system reliability.
+**Reduced Operational Overhead and Increased Reliability**: A simpler architecture with fewer moving parts inherently reduces the system's attack surface and the potential for component failure or misconfiguration. This lean operational model lowers the cognitive load on platform teams, making the cluster easier to manage, secure, and upgrade, thereby increasing overall system reliability.
 
-<b>Enhanced Developer and Operator Experience</b>: The intuitive networking model empowers development teams to deploy and manage their applications without needing to become experts in complex network virtualization. This clarity fosters a stronger sense of ownership and accelerates the development lifecycle, as teams can reason about network communication in a straightforward manner.
+**Enhanced Developer and Operator Experience**: The intuitive networking model empowers development teams to deploy and manage their applications without needing to become experts in complex network virtualization. This clarity fosters a stronger sense of ownership and accelerates the development lifecycle, as teams can reason about network communication in a straightforward manner.
 
 <div align="center">
 
@@ -30,18 +30,17 @@ The commitment to a simple and performant networking foundation provides strateg
 
 During our evaluation, we analyzed solutions designed to enable native Kubernetes NetworkPolicy support on platforms where the CNI does not enforce it. A notable example is the windows-network-policy-controller from the Kubernetes SIGs community, which translates NetworkPolicy objects into rules for the Windows Filtering Platform.
 
-<b>Potential Advantage</b>: The primary benefit of such a controller is the ability to use the standard Kubernetes NetworkPolicy API. This provides a familiar, powerful abstraction for defining granular, label-based traffic rules between pods, which is highly desirable from a user-experience perspective.
+**Potential Advantage**: The primary benefit of such a controller is the ability to use the standard Kubernetes NetworkPolicy API. This provides a familiar, powerful abstraction for defining granular, label-based traffic rules between pods, which is highly desirable from a user-experience perspective.
 
-<b>Reasons for Rejection</b>: Despite this advantage, we concluded that this approach was not aligned with the core K2s tenets for the following reasons:
+**Reasons for Rejection**: Despite this advantage, we concluded that this approach was not aligned with the core K2s tenets for the following reasons:
 
-<b>Increased Complexity</b>: It introduces another active controller into the cluster's critical path. This component must be installed, managed, and monitored, adding operational overhead. Its logic for translating policies into host rules creates a layer of abstraction that can be difficult to debug when unexpected network behavior occurs.
+**Increased Complexity**: It introduces another active controller into the cluster's critical path. This component must be installed, managed, and monitored, adding operational overhead. Its logic for translating policies into host rules creates a layer of abstraction that can be difficult to debug when unexpected network behavior occurs.
 
-<b>Performance and Scalability Concerns</b>: A network policy controller must continuously watch the Kubernetes API for changes to pods (e.g., label changes, scaling events) and policies. In dynamic clusters, this can trigger frequent and numerous updates to the host's firewall ruleset, potentially leading to performance degradation, rule conflicts, or transient connectivity issues. This dynamic management layer adds computational overhead compared to the static, highly-performant rules applied by our chosen DaemonSet approach.
+**Performance and Scalability Concerns**: A network policy controller must continuously watch the Kubernetes API for changes to pods (e.g., label changes, scaling events) and policies. In dynamic clusters, this can trigger frequent and numerous updates to the host's firewall ruleset, potentially leading to performance degradation, rule conflicts, or transient connectivity issues. This dynamic management layer adds computational overhead compared to the static, high-performance rules applied by our chosen DaemonSet approach.
 
-<b>Deviation from Simplicity</b>: The goal of K2s is to provide a transparent and easily understandable system. A dynamic controller that generates a complex and ever-changing set of host firewall rules moves away from this principle, making it harder for operators to reason about the state of the network at any given moment. In addition the solutions add an overhead in the package processing plus an additional CPU overhead for kernel/userspace transitions: latency increase of +100μs-2ms per packet, throughput reduction: 20%-80%
-and CPU overhead: +20-200%. Even package drops are possible under high load !
+**Deviation from Simplicity**: The goal of K2s is to provide a transparent and easily understandable system. A dynamic controller that generates a complex and ever-changing set of host firewall rules moves away from this principle, making it harder for operators to reason about the state of the network at any given moment. In addition, the solutions add overhead in packet processing, plus additional CPU overhead for kernel/userspace transitions: latency increase of 100μs-2ms per packet, throughput reduction of 20%-80%, and CPU overhead of 20-200%. Even packet drops are possible under high load.
 
-<b>OS support</b> Many of the analyzed solutions where not working under Windows, they provided only for Linux nodes a viable solution.
+**OS support**: Many of the analyzed solutions were not working under Windows; they provided viable solutions only for Linux nodes.
 
 ## Governing Non-TCP Traffic
 
@@ -55,19 +54,19 @@ To address this gap, we have adopted a strategy of leveraging the native, kernel
 
 This decision reinforces our commitment to performance and simplicity through the following key advantages:
 
-<b>Upholding Peak Performance</b>: By delegating UDP filtering to the highly-optimized packet processing engines within the host kernel, we ensure that security policies are enforced with negligible latency or throughput degradation. This preserves the performance integrity of the *K2s* data plane, which is paramount for data-intensive applications.
+**Upholding Peak Performance**: By delegating UDP filtering to the highly-optimized packet processing engines within the host kernel, we ensure that security policies are enforced with negligible latency or throughput degradation. This preserves the performance integrity of the *K2s* data plane, which is paramount for data-intensive applications.
 
-<b>Maintaining Architectural Simplicity</b>: This approach avoids introducing a complex secondary networking stack. We retain the lean, understandable Flannel CNI and sidestep the steep learning curve and operational burden associated with more intricate CNI solutions. The control plane remains minimalist and easy to manage.
+**Maintaining Architectural Simplicity**: This approach avoids introducing a complex secondary networking stack. We retain the lean, understandable Flannel CNI and sidestep the steep learning curve and operational burden associated with more intricate CNI solutions. The control plane remains minimalist and easy to manage.
 
-<b>Declarative and Scalable Management</b>: While the enforcement mechanism is at the host level, its management is fully integrated into the Kubernetes control plane. The DaemonSet ensures that every node—present and future—automatically and consistently receives the correct security posture. This prevents configuration drift and provides a scalable, "GitOps-friendly" method for managing node security.
+**Declarative and Scalable Management**: While the enforcement mechanism is at the host level, its management is fully integrated into the Kubernetes control plane. The DaemonSet ensures that every node—present and future—automatically and consistently receives the correct security posture. This prevents configuration drift and provides a scalable, "GitOps-friendly" method for managing node security.
 
-<b>Robust and Mature Technology</b>: We are building upon the most stable, battle-tested components of the operating systems themselves. iptables and the Windows Firewall are mature, reliable, and well-understood technologies, minimizing the risk of introducing new bugs or unpredictable behaviors into the networking stack.
+**Robust and Mature Technology**: We are building upon the most stable, battle-tested components of the operating systems themselves. iptables and the Windows Firewall are mature, reliable, and well-understood technologies, minimizing the risk of introducing new bugs or unpredictable behaviors into the networking stack.
 
 ## Implementation Example: Node Firewall DaemonSet
 
 The following DaemonSet manifest provides a reference implementation for applying firewall rules on all Linux nodes. A corresponding DaemonSet using a Windows container image and PowerShell commands would be deployed for Windows nodes.
 
-```
+```yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -132,7 +131,7 @@ spec:
 
 ## Implementation Example: Node Firewall DaemonSet for Windows
 
-```
+```yaml
 # Filename: windows-node-firewall-daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
@@ -191,6 +190,6 @@ spec:
           Start-Sleep -Seconds 2147483647
 ```
 
-Conclusion
+## Conclusion
 
 By implementing UDP security policies via a host-firewall DaemonSet, *K2s* strikes an optimal balance. We secure the cluster by closing the UDP gap while staying true to our core tenets: delivering a Kubernetes distribution that is exceptionally fast, operationally simple, and ready for the most demanding production workloads.
